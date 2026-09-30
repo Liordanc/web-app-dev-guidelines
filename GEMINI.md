@@ -1,272 +1,329 @@
-# Premium UI Quality Standards
+# Premium Quality Standards: Full Integration Testing
 
-This repository enforces strict validation gates for web application development. 
+This repository enforces strict validation gates for web application development and document-processing workflows.
 
-**No task may be reported as complete without passing all validation checks.**
+**No task may be reported as complete without:**
+1. Running the entire application workflow with real or realistic test data.
+2. Verifying the final output is correct and complete.
+3. Validating all required fields, rows, and columns in the produced file.
+4. Checking integration between OCR / parsing / transformation / export stages.
+5. Running relevant automated tests before final completion.
 
 ## Core mandate
 
 Before claiming any work is finished:
-1. **All UI tests pass** — the changed user flow works correctly end-to-end.
-2. **All Python/backend tests pass** — APIs, services, and data logic are verified.
-3. **Lint and type checks pass** — code quality standards are met.
-4. **Visual regression checks pass** — UI appearance is correct (if configured).
-5. **Accessibility checks pass** — WCAG 2.1 AA standards are met (if configured).
+- The **entire workflow** must execute successfully.
+- The **final output** (Excel, CSV, JSON, database, report, etc.) must be validated.
+- All **fields and columns** must be present and filled correctly.
+- The **integration** between all components must work.
+- If the output is incomplete, inaccurate, or partially filled, the task is **incomplete**.
 
-If any validation fails, the task is **incomplete**. Do not mark it done.
+---
 
-## UI validation (mandatory)
+## Example: Receipt Processing & Excel Export
 
-### Playwright E2E tests
+Your project: OCR receipts → Extract data → Generate Excel sheets
 
-For every UI change, run:
-```bash
-npx playwright test --headed
-# or targeted to the changed feature
-npx playwright test tests/ui/feature-name.spec.ts --headed
+### What MUST be tested
+
+#### ❌ NOT ENOUGH:
+"I fixed the OCR parsing. The code compiles and unit tests pass."
+- No actual receipt was processed.
+- No Excel file was generated.
+- No validation of output format or fields.
+
+#### ✅ REQUIRED:
+"I fixed the OCR parsing. Here's what I verified:
+
+**Step 1: Run OCR on sample receipt**
+- Input: `samples/receipt_sample.jpg`
+- OCR output included: vendor, date, amount, tax, payment method, category
+- Result: ✓ All fields extracted correctly
+
+**Step 2: Extract missing fields**
+- Added logic to detect tax amount from receipt image
+- Payment method extracted from receipt footer
+- Result: ✓ Fields populated correctly
+
+**Step 3: Generate Excel file**
+- Command: `python -m app.processor --input samples/receipt_sample.jpg --output output.xlsx`
+- Result: ✓ `output.xlsx` created
+
+**Step 4: Validate Excel structure**
+- Columns present: `[Vendor, Date, Amount, Tax, Payment Method, Category]`
+- Header row: ✓
+- Data row values: ✓
+- Numeric columns formatted correctly: ✓
+- Result: ✓ Excel structure valid
+
+**Step 5: Validate data accuracy**
+- Original receipt: Vendor = "Acme Corp", Amount = 42.50
+- Excel output: Vendor = "Acme Corp", Amount = 42.50
+- Result: ✓ Data matches original
+
+**Step 6: Test edge cases**
+- Receipt with missing tax field → Excel tax column marked N/A ✓
+- Multi-line vendor name → handled correctly ✓
+- Blurry receipt → OCR still extracted values acceptable for workflow ✓
+
+**Unit tests pass:**
+```
+pytest tests/unit/test_ocr.py -q
+pytest tests/unit/test_excel_generator.py -q
+✓ All passed
 ```
 
-Before marking complete, verify:
-- [ ] All affected user flows pass in E2E tests.
-- [ ] The flow works in all configured browsers (Chrome, Firefox, Safari, Edge).
-- [ ] Navigation, forms, and interactions work as intended.
-- [ ] Error handling and edge cases are tested.
-- [ ] Test output is included in the final response.
-
-If tests fail:
-- [ ] Do not claim success.
-- [ ] Fix the failing test or the underlying code.
-- [ ] Re-run until all pass.
-
-### Component/unit tests (if applicable)
-
-For React/Vue/Angular components:
-```bash
-npm test -- src/components/ChangedComponent.test.tsx --runInBand
-# or all component tests
-npm test -- --testPathPattern=components --runInBand
+**Build and runtime:**
+```
+python -m compileall .
+✓ No errors
 ```
 
-Before marking complete, verify:
-- [ ] Component renders correctly.
-- [ ] Props and state updates behave as expected.
-- [ ] User interactions trigger the correct handlers.
-- [ ] Edge cases (empty state, loading, error) are covered.
+The output file is valid, all fields present, and the workflow is ready for production."
 
-### Visual regression tests (if configured)
+---
 
-If the repo uses visual regression tools (Percy, Chromatic, etc.):
+## Full application testing workflow
+
+### Step 1: Setup
+
+Prepare test data that represents real usage:
 ```bash
-# Example: Percy
-npm run percy:test
-# or Chromatic
-npm run chromatic -- --only-changed
+# Example: Receipt processing
+ls tests/samples/
+- receipt_1.jpg      # normal receipt
+- receipt_2.jpg      # blurry receipt
+- receipt_3.jpg      # missing tax field
+- receipt_4.jpg      # foreign text / special characters
 ```
 
-Before marking complete, verify:
-- [ ] No unexpected visual changes.
-- [ ] Approved visual diffs (if any) are intentional.
-- [ ] Report is included in the final response.
+### Step 2: Run the application with test data
 
-### Accessibility validation
-
-If the repo requires WCAG 2.1 AA compliance:
 ```bash
-# Example: axe-playwright
-npx playwright test tests/a11y/ --headed
+# Example for a receipt processing pipeline
+python -m app.processor \
+  --input tests/samples/receipt_1.jpg \
+  --output output.xlsx
 ```
 
-Before marking complete, verify:
-- [ ] No accessibility violations in the changed UI.
-- [ ] Keyboard navigation works.
-- [ ] Screen reader labels are correct.
-- [ ] Color contrast meets WCAG AA.
-
-## Python/backend validation (mandatory)
-
-### Unit tests
-
-For every Python change, run:
+For other projects, adapt to your workflow:
 ```bash
+# Python pipeline
+python scripts/process_data.py --input test_data.csv --output result.xlsx
+
+# Web app
+npm run generate-report -- --source test_data.json --output report.html
+
+# CLI tool
+./bin/mytool process --file input.txt --format excel
+```
+
+### Step 3: Validate output format
+
+Check that the output file has the correct structure:
+
+```bash
+# Excel validation
+python - <<'PY'
+import pandas as pd
+
+df = pd.read_excel('output.xlsx')
+print('Columns:', df.columns.tolist())
+print('Rows:', len(df))
+print(df.head())
+PY
+```
+
+### Step 4: Validate all required fields are present
+
+Create a checklist specific to your project. For receipt processing:
+```
+- [ ] Vendor name present
+- [ ] Date present and correctly formatted
+- [ ] Amount present and numeric
+- [ ] Tax amount present or marked N/A when missing
+- [ ] Payment method extracted
+- [ ] Category assigned
+- [ ] No empty values in critical columns
+```
+
+For your project, define all required columns and all required fields that cannot be blank.
+
+### Step 5: Validate data accuracy
+
+Compare input vs. output:
+
+```bash
+python - <<'PY'
+import pandas as pd
+
+df = pd.read_excel('output.xlsx')
+print(df.iloc[0].to_dict())
+PY
+```
+
+Manually verify:
+- Vendor name matches the receipt
+- Amount matches the receipt
+- Date matches the receipt
+- Tax and payment method are correct if present
+- The project-specific expected values are correct
+
+### Step 6: Test edge cases
+
+Run the full workflow with difficult inputs:
+
+```bash
+python -m app.processor --input tests/samples/receipt_blurry.jpg --output output_blurry.xlsx
+python -m app.processor --input tests/samples/receipt_missing_tax.jpg --output output_no_tax.xlsx
+python -m app.processor --input tests/samples/receipt_foreign.jpg --output output_foreign.xlsx
+```
+
+Check:
+- the app did not crash,
+- the output was still produced,
+- critical fields are still correct or intentionally marked as missing,
+- no silently dropped values.
+
+### Step 7: Run all automated tests
+
+```bash
+# Unit tests
 pytest tests/unit/ -q
-# or targeted to the changed module
-pytest tests/unit/test_changed_module.py -q
-```
 
-Before marking complete, verify:
-- [ ] All unit tests pass.
-- [ ] New behavior is covered by tests.
-- [ ] Edge cases and error paths are tested.
-- [ ] Test output is included in the final response.
-
-### Integration tests
-
-If the change affects APIs or service logic:
-```bash
+# Integration tests
 pytest tests/integration/ -q
-# or specific integration suite
-pytest tests/integration/test_api_endpoints.py -q
-```
 
-Before marking complete, verify:
-- [ ] All integration tests pass.
-- [ ] API contracts are validated.
-- [ ] Database or external service calls work correctly.
-
-### Type checking
-
-If the repo uses type hints (mypy, pyright, etc.):
-```bash
+# Type checking
 mypy . --strict
-# or configured type checker
-pyright
-```
 
-Before marking complete, verify:
-- [ ] No type errors.
-- [ ] Type coverage is maintained or improved.
-
-### Lint and formatting
-
-If configured:
-```bash
+# Lint
 ruff check .
-black --check .
-# or configured linter
-flake8 .
+
+# Build validation
+python -m compileall .
 ```
 
-Before marking complete, verify:
-- [ ] No lint violations.
-- [ ] Code is properly formatted.
+### Step 8: Compare before and after (if fixing an existing bug)
 
-## Web app build validation
-
-### Build success
+If fixing a defect, run the workflow before and after:
 
 ```bash
-npm run build
-# or configured build command
+# Before fix
+python -m app.processor --input tests/samples/receipt_1.jpg --output output_old.xlsx
+
+# After fix
+python -m app.processor --input tests/samples/receipt_1.jpg --output output_new.xlsx
 ```
 
-Before marking complete, verify:
-- [ ] Build completes without errors.
-- [ ] No console warnings or deprecations introduced.
-- [ ] Build output is optimized (check bundle size if applicable).
+Then compare outputs and confirm the corrected version is better and consistent with expected results.
 
-### Runtime validation
+---
 
-After build, verify the app runs:
-```bash
-npm start
-# or dev server for testing
-```
+## Completion checklist for this project type
 
-Before marking complete:
-- [ ] App starts without errors.
-- [ ] No runtime exceptions in the console.
-- [ ] Changed features work in the running app.
+- [ ] Application runs without errors with test data
+- [ ] Output file is generated
+- [ ] All required columns/fields exist in the output
+- [ ] All required fields are populated
+- [ ] Data accuracy verified against input
+- [ ] Edge cases tested
+- [ ] Unit tests pass
+- [ ] Integration tests pass
+- [ ] Type checking passes (if applicable)
+- [ ] Lint passes
+- [ ] Build succeeds
+- [ ] Output inspection confirmed manually
 
-## Completion checklist
+---
 
-A task is complete **only** when all applicable items are checked:
+## Failure scenarios (task is INCOMPLETE)
 
-- [ ] **UI tests pass**: Playwright E2E or component tests run successfully.
-- [ ] **UI coverage**: All affected user flows are tested.
-- [ ] **Visual validation**: No unexpected regressions (if visual tests configured).
-- [ ] **Accessibility**: WCAG 2.1 AA standards met (if required).
-- [ ] **Python tests pass**: Unit and integration tests run successfully.
-- [ ] **Type checking passes**: No type errors (if mypy/pyright configured).
-- [ ] **Lint passes**: Code meets style standards.
-- [ ] **Build succeeds**: `npm run build` completes without errors.
-- [ ] **Runtime verified**: App runs and changed features work.
-- [ ] **Test evidence included**: Final response includes test output and results.
+❌ "I fixed the OCR. The code compiles and tests pass."
+- No actual receipt was processed.
+- No output file was checked.
+- Task is **incomplete**.
 
-## Failure policy
+❌ "I added the missing tax column. Here's the code change."
+- The column may exist in code but not actually be populated.
+- No workflow validation was done.
+- Task is **incomplete**.
 
-If **any** validation fails:
-- **Do not claim success or "done".**
-- Clearly explain what failed and why.
-- Either fix the issue immediately and re-run validation, or stop and report the blocker.
-- If a fix is not possible in this session, document the exact failure and remaining work.
+❌ "I improved OCR accuracy from 85% to 92%."
+- Metrics sound good, but the actual generated file was not validated.
+- No end-to-end output verification performed.
+- Task is **incomplete**.
+
+---
 
 ## Final response requirements
 
 When reporting a task as complete, the response **must** include:
 
-1. **Summary of changes**: What was added, changed, or fixed.
-2. **UI validation results**: 
-   - Playwright test output (pass/fail).
-   - Browsers tested.
-   - Any visual or accessibility findings.
-3. **Python/backend validation results**: 
-   - Unit test output (pass/fail).
-   - Integration test output (pass/fail).
-   - Type check results.
-4. **Build and runtime validation**:
-   - Build output (success/failure).
-   - Runtime verification (any errors?).
-5. **Lint and formatting**: Pass or fail.
-6. **Remaining issues or caveats**: Any known limitations or blockers.
+1. **Summary of changes**
+2. **Full workflow validation results**
+3. **Output inspection results**
+4. **Evidence that all required fields are present and populated**
+5. **Automated test results**
+6. **Remaining issues or caveats**
+
+### Required format example
+
+```text
+Summary:
+- Improved OCR parsing for receipt fields and fixed missing tax extraction.
+
+Workflow validation:
+- Ran full pipeline on sample receipt: output.xlsx generated successfully.
+- Verified columns: Vendor, Date, Amount, Tax, Payment Method, Category.
+- Verified values match source receipt.
+
+Field checks:
+- Vendor: Acme Corp ✓
+- Date: 2025-01-15 ✓
+- Amount: 42.50 ✓
+- Tax: 3.50 ✓
+- Payment Method: Card ✓
+- Category: Office Supplies ✓
+
+Tests:
+- pytest tests/unit/test_ocr.py -q → passed
+- pytest tests/integration/test_receipt_pipeline.py -q → passed
+
+Conclusion:
+- Workflow works end-to-end and output is valid.
+```
 
 **Never claim a task is complete without this evidence.**
 
-## Examples of incomplete vs. complete
+---
 
-### ❌ Incomplete
-"I added the login form. Let me know if it works."
-- No tests run.
-- No validation evidence.
+## Repository-specific implementation
 
-### ✅ Complete
-"I added the login form with validation. Here's what I verified:
+Adapt this policy to your actual project:
 
-**UI Tests:**
-```
-npx playwright test tests/ui/login.spec.ts
-✓ Login form renders
-✓ Valid credentials log in the user
-✓ Invalid credentials show error
-✓ Form validation prevents submission with empty fields
-```
-All 4 tests passed.
-
-**Python API Tests:**
-```
-pytest tests/unit/test_auth.py -q
-4 passed
-```
-
-**Lint:**
-```
-npm run lint
-0 issues found
-```
-
-**Build:**
-```
-npm run build
-Successfully compiled.
-```
-
-The login flow now works end-to-end in Chrome, Firefox, and Safari."
-
-## Repository-specific commands
-
-If your repo has custom test or validation commands, use those instead of generic ones. Examples:
-
+**For Python document-processing projects:**
 ```bash
-# Run all quality checks at once
-npm run quality-check
-# or
-make test
-
-# Run only affected tests
-npm run test:changed
-
-# Run specific test suite
-npm run test:ui
-npm run test:api
+python -m app.process --input sample_data.csv --output result.xlsx
+# Validate output file structure and values
 ```
 
-Prefer repo-specific commands when available.
+**For web scraping and extraction projects:**
+```bash
+python scraper.py --output scraped_data.json
+# Validate the JSON structure and all expected fields
+```
+
+**For OCR/image parsing projects:**
+```bash
+python -m processor.ocr --image test.png --output extracted.json
+# Validate extracted.json contains all required fields
+```
+
+**For data pipeline projects:**
+```bash
+python -m pipeline.main --source input.csv --target output.db
+# Validate database schema and row contents
+```
+
+Choose commands and validation steps that match your actual application.
